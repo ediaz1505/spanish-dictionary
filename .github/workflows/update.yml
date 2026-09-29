@@ -74,11 +74,13 @@ jobs:
           unzip -q stardict2mac.zip -d stardict2mac
           STARDICT2MAC="stardict2mac/StarDict2Mac.app/Contents/MacOS/StarDict2Mac"
           "$STARDICT2MAC" setup-kit
-          "$STARDICT2MAC" convert --name "Spanish-English (words + idioms)" es-en-idioms.ifo --no-install
+          # No flag to skip install — it always builds straight into
+          # ~/Library/Dictionaries (harmless on a throwaway CI runner).
+          "$STARDICT2MAC" convert --name "Spanish-English (words + idioms)" es-en-idioms.ifo
 
           # --- Package the result ---
-          built_bundle=$(find . -maxdepth 2 -name "*.dictionary" | head -1)
-          zip -qr "es-en-idioms.dictionary.zip" "$built_bundle"
+          workdir="$PWD"
+          (cd "$HOME/Library/Dictionaries" && zip -qr "$workdir/es-en-idioms.dictionary.zip" "es-en-idioms.dictionary")
 
           [ "$doozan_due" = true ] && print -r -- "$latest_doozan" > state/last_doozan_release
           [ "$realm_due" = true ] && print -r -- "$now" > state/last_language_realm_scrape
