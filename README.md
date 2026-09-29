@@ -9,9 +9,27 @@ Built from:
 - **[Language Realm's Spanish Idiom Dictionary](https://www.languagerealm.com/spanish/spanishidioms.php)** — curated idioms not already in Wiktionary, added by hand in `manual_additions.data`.
 
 ## Install
-Download the latest `es-en-idioms.dictionary.zip` from [Releases](../../releases),
-unzip, and move the `.dictionary` bundle into `~/Library/Dictionaries`. Open
-Dictionary.app → Settings and tick "Spanish-English (words + idioms)".
+
+Open Terminal and run:
+
+```
+curl -fsSL https://raw.githubusercontent.com/ediaz1505/spanish-dictionary/main/install.sh | bash
+```
+
+This downloads the latest build from [Releases](../../releases) and installs
+it into `~/Library/Dictionaries`. A plain Finder unzip-and-drag often silently
+fails here — downloaded files get a Gatekeeper quarantine flag that blocks
+moving a `.dictionary` bundle into place, with no clear error — so the script
+handles that (`xattr -dr com.apple.quarantine`) for you.
+
+Then: quit Dictionary.app if it's open (⌘Q), reopen it, go to
+**Dictionary.app → Settings**, and tick **"Spanish-English (words + idioms)"**.
+
+Prefer to do it by hand? Download `es-en-idioms.dictionary.zip` from
+[Releases](../../releases), unzip it, then in Terminal run
+`xattr -dr com.apple.quarantine path/to/es-en-idioms.dictionary` before
+moving it into `~/Library/Dictionaries` — skipping that step is the most
+common reason the move silently doesn't go through.
 
 ## How it stays current
 A GitHub Actions workflow (`.github/workflows/update.yml`) runs weekly:

@@ -105,4 +105,10 @@ jobs:
           tag="build-$(date +%Y-%m-%d)"
           gh release create "$tag" es-en-idioms.dictionary.zip \
             --title "Spanish-English (words + idioms) — $(date +%Y-%m-%d)" \
-            --notes "Automated rebuild. See commit history for what changed (doozan/spanish_data release bump and/or Language Realm idiom refresh)."
+            --notes "Automated rebuild. See commit history for what changed (doozan/spanish_data release bump and/or Language Realm idiom refresh).
+
+**Install:**
+\`\`\`
+curl -fsSL https://raw.githubusercontent.com/ediaz1505/spanish-dictionary/main/install.sh | bash
+\`\`\`
+Then quit and reopen Dictionary.app, and tick \"Spanish-English (words + idioms)\" in Settings."
