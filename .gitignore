@@ -1,0 +1,12 @@
+# Fetched fresh by build.sh / CI — not committed
+spanish_data/
+stardict/
+stardict2mac/
+StarDict.zip
+stardict2mac.zip
+es-en-idioms.dict
+es-en-idioms.idx
+es-en-idioms.ifo
+*.dictionary
+*.dictionary.zip
+.DS_Store

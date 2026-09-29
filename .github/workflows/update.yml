@@ -1,0 +1,102 @@
+name: Update Spanish dictionary
+
+on:
+  schedule:
+    # Every Monday. Checks doozan/spanish_data every run; only re-scrapes
+    # Language Realm and rebuilds when something's actually due.
+    - cron: '0 13 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decide what's due and build if needed
+        id: build
+        run: |
+          set -e
+          mkdir -p state
+
+          # --- doozan/spanish_data: is there a newer release than last time? ---
+          latest_doozan=$(curl -s --max-time 20 https://api.github.com/repos/doozan/spanish_data/releases/latest \
+            | python3 -c "import json,sys; print(json.load(sys.stdin).get('tag_name',''))")
+          known_doozan=$(cat state/last_doozan_release 2>/dev/null || echo "")
+          doozan_due=false
+          if [ -n "$latest_doozan" ] && [ "$latest_doozan" != "$known_doozan" ]; then
+            doozan_due=true
+          fi
+
+          # --- Language Realm: has it been ~6 months since the last scrape? ---
+          last_realm=$(cat state/last_language_realm_scrape 2>/dev/null || echo 0)
+          now=$(date +%s)
+          realm_days=$(( (now - last_realm) / 86400 ))
+          realm_due=false
+          if [ "$realm_days" -ge 182 ]; then
+            realm_due=true
+          fi
+
+          echo "doozan latest=$latest_doozan known=$known_doozan due=$doozan_due"
+          echo "language realm last scrape ${realm_days}d ago, due=$realm_due"
+
+          if [ "$doozan_due" = false ] && [ "$realm_due" = false ]; then
+            echo "nothing due; skipping build"
+            echo "did_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # --- Fetch the base data ---
+          mkdir -p spanish_data
+          curl -sL --max-time 120 -o spanish_data/es-en.data \
+            https://github.com/doozan/spanish_data/raw/master/es-en.data
+
+          # --- Scrape Language Realm if due ---
+          if [ "$realm_due" = true ]; then
+            result=$(python3 scrape_language_realm.py)
+            echo "Language Realm: $result"
+          fi
+
+          # --- Rebuild the StarDict source ---
+          python3 build_stardict.py
+
+          # --- Convert to a native macOS .dictionary bundle ---
+          curl -sL --max-time 60 -o stardict2mac.zip \
+            "$(curl -s https://api.github.com/repos/Sangyop-Lee/stardict2mac/releases/latest \
+              | python3 -c "import json,sys; a=json.load(sys.stdin)['assets']; print(next(x['browser_download_url'] for x in a if x['name'].endswith('.zip')))")"
+          unzip -q stardict2mac.zip -d stardict2mac
+          STARDICT2MAC="stardict2mac/StarDict2Mac.app/Contents/MacOS/StarDict2Mac"
+          "$STARDICT2MAC" setup-kit
+          "$STARDICT2MAC" convert --name "Spanish-English (words + idioms)" es-en-idioms.ifo --no-install
+
+          # --- Package the result ---
+          built_bundle=$(find . -maxdepth 2 -name "*.dictionary" | head -1)
+          zip -qr "es-en-idioms.dictionary.zip" "$built_bundle"
+
+          [ "$doozan_due" = true ] && print -r -- "$latest_doozan" > state/last_doozan_release
+          [ "$realm_due" = true ] && print -r -- "$now" > state/last_language_realm_scrape
+
+          echo "did_build=true" >> "$GITHUB_OUTPUT"
+        shell: zsh {0}
+
+      - name: Commit updated data + state
+        if: steps.build.outputs.did_build == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manual_additions.data state/
+          git diff --quiet --cached || git commit -m "Automated update: rebuild dictionary"
+          git push
+
+      - name: Publish release with the built dictionary
+        if: steps.build.outputs.did_build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="build-$(date +%Y-%m-%d)"
+          gh release create "$tag" es-en-idioms.dictionary.zip \
+            --title "Spanish-English (words + idioms) — $(date +%Y-%m-%d)" \
+            --notes "Automated rebuild. See commit history for what changed (doozan/spanish_data release bump and/or Language Realm idiom refresh)."
