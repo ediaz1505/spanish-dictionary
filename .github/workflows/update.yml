@@ -18,13 +18,17 @@ jobs:
 
       - name: Decide what's due and build if needed
         id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           mkdir -p state
 
           # --- doozan/spanish_data: is there a newer release than last time? ---
-          latest_doozan=$(curl -s --max-time 20 https://api.github.com/repos/doozan/spanish_data/releases/latest \
-            | python3 -c "import json,sys; print(json.load(sys.stdin).get('tag_name',''))")
+          # Authenticated via gh (GH_TOKEN) — anonymous curl from a shared
+          # runner IP hits GitHub's much lower unauthenticated rate limit.
+          latest_doozan=$(gh api repos/doozan/spanish_data/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
+          known_doozan=$(cat state/last_doozan_release 2>/dev/null || echo "")
           known_doozan=$(cat state/last_doozan_release 2>/dev/null || echo "")
           doozan_due=false
           if [ -n "$latest_doozan" ] && [ "$latest_doozan" != "$known_doozan" ]; then
@@ -64,9 +68,9 @@ jobs:
           python3 build_stardict.py
 
           # --- Convert to a native macOS .dictionary bundle ---
-          curl -sL --max-time 60 -o stardict2mac.zip \
-            "$(curl -s https://api.github.com/repos/Sangyop-Lee/stardict2mac/releases/latest \
-              | python3 -c "import json,sys; a=json.load(sys.stdin)['assets']; print(next(x['browser_download_url'] for x in a if x['name'].endswith('.zip')))")"
+          asset_url=$(gh api repos/Sangyop-Lee/stardict2mac/releases/latest \
+            --jq '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -1)
+          curl -sL --max-time 60 -o stardict2mac.zip "$asset_url"
           unzip -q stardict2mac.zip -d stardict2mac
           STARDICT2MAC="stardict2mac/StarDict2Mac.app/Contents/MacOS/StarDict2Mac"
           "$STARDICT2MAC" setup-kit
